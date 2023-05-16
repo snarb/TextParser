@@ -5,56 +5,74 @@
 #include <vector>
 #include <locale>
 #include <codecvt>
-#define NOMINMAX
-#include <Windows.h>
-
-#include <locale>
-#include <codecvt>
 #include <cwctype>
 #include <algorithm>
 #include <cctype>
-#include <iostream>
-
-
 #include <set>
-#include <fstream>
 #include <sstream>
 #include <unordered_map>
+#include <Windows.h>
 
 constexpr int CHUNK_SIZE_MIN = 10;
 constexpr int MIN_WORD_LENGTH = 2;
+
 struct Words {
     std::wstring cleaned_text;
     std::size_t start;
     std::size_t end;
 };
 
+struct Chunk {
+    std::wstring text;
+    std::size_t start;
+    std::size_t end;
+};
+
+
 std::set<std::wstring> allowed_words;
 std::unordered_map<std::wstring, int> counter;
 std::vector<Words> words;
+std::vector<Chunk> chunks;
 
-
-
-std::vector<std::wstring> split_into_chunks(const std::vector<std::wstring>&words) {
-    std::vector<std::wstring> chunks;
-    std::wstring current_chunk;
-    for (const auto& word : words) {
-        if (allowed_words.count(word) == 0) {
-            counter[word]++;
-
-            if (current_chunk.size() >= CHUNK_SIZE_MIN) {
-                chunks.push_back(current_chunk);
-            }
-            current_chunk.clear();
-        }
-        current_chunk += (word + L" ");
+std::wstring get_chunk_source_text(const Chunk& chunk, const std::wstring& orig_string) {
+    std::wstring source_text;
+    for (std::size_t i = chunk.start; i <= chunk.end; ++i) {
+        source_text += orig_string[i];
     }
-
-    if (current_chunk.size() >= CHUNK_SIZE_MIN) {
-        chunks.push_back(current_chunk);
-    }
-    return chunks;
+    return source_text;
 }
+
+void split_into_chunks() {
+    std::wstring current_chunk_text;
+    std::size_t current_chunk_start = 0;
+    chunks.clear();
+    bool start_new_chunk = true;
+    for (std::size_t i = 0; i < words.size(); ++i) {
+        const auto& word = words[i];
+
+        if (allowed_words.count(word.cleaned_text) == 0) {
+            counter[word.cleaned_text]++;
+            if (!current_chunk_text.empty() && current_chunk_text.size() >= CHUNK_SIZE_MIN) {
+                chunks.push_back({ current_chunk_text, current_chunk_start, words[i - 1].end });
+                current_chunk_text.clear();
+            }
+            start_new_chunk = true;
+        }
+        else {
+            if (start_new_chunk) {
+                current_chunk_start = word.start;
+                start_new_chunk = false;
+            }
+            current_chunk_text += (word.cleaned_text + L" ");
+        }
+    }
+
+    if (!current_chunk_text.empty() && current_chunk_text.size() >= CHUNK_SIZE_MIN) {
+        chunks.push_back({ current_chunk_text, current_chunk_start, words.back().end });
+    }
+}
+
+
 
 void read_words_into_set(std::set<std::wstring>&words, const std::string & filename) {
     std::ifstream file(filename);
@@ -94,7 +112,7 @@ std::wstring clean_word(std::wstring word) {
 }
 
 // A helper function to split a string into words words.clear();
-void split_string(const std::wstring& str) {
+void split_into_words(const std::wstring& str) {
     std::wcout << L"Before printing number of chunks." << std::endl;
     words.clear();
     std::wstring word;
@@ -146,21 +164,21 @@ void read_tx_files(const std::filesystem::path & path) {
                 {
                     std::wstring content = readFile(entry.path().string());
 
-                    split_string(content);
+                    split_into_words(content);
 
-                   // auto chunks = split_into_chunks(words);
-                   // std::wcout << L"Number of chunks: " << chunks.size() << std::endl;
+                    split_into_chunks();
+                    std::wcout << L"Number of chunks: " << chunks.size() << std::endl;
 
-                    //for (const auto& cleaned_text : chunks) {
-                    //    std::wcout << L"Chunk: " << cleaned_text.cleaned_text << std::endl;
-                    //    std::wcout << L"Start position: " << cleaned_text.start << std::endl;
-                    //    std::wcout << L"End position: " << cleaned_text.end << std::endl;
-                    //    std::wcout << L"Source: ";
-                    //    for (std::size_t i = cleaned_text.start; i <= cleaned_text.end; ++i) {
-                    //        std::wcout << content[i];
-                    //    }
-                    //    std::wcout << std::endl;
-                    //}
+                    for (const auto& chunk : chunks) {
+                        std::wcout << L"Chunk: " << chunk.text << std::endl;
+
+                        //std::wcout << L"Start position: " << chunk.start << std::endl;
+                        //std::wcout << L"End position: " << chunk.end << std::endl;
+                        std::wcout << L"Source: ";
+                        std::wcout << get_chunk_source_text(chunk, content) << std::endl;
+                        std::wcout << L" -----------------" << std::endl;
+
+                    }
 
                     // Print the most frequent words
                     if (iter % 100 == 0) {
