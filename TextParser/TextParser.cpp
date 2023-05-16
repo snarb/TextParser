@@ -24,11 +24,14 @@
 constexpr int CHUNK_SIZE_MIN = 10;
 constexpr int MIN_WORD_LENGTH = 2;
 struct Words {
-    std::wstring chunk;  // Cleaned word
-    std::wstring source;  // Source text (before cleaning)
+    std::wstring cleaned_text;
+    std::size_t start;
+    std::size_t end;
 };
+
 std::set<std::wstring> allowed_words;
 std::unordered_map<std::wstring, int> counter;
+std::vector<Words> words;
 
 
 
@@ -90,41 +93,36 @@ std::wstring clean_word(std::wstring word) {
     return word;
 }
 
-// A helper function to split a string into words
-std::vector<Words> split_string(const std::wstring& str) {
+// A helper function to split a string into words words.clear();
+void split_string(const std::wstring& str) {
     std::wcout << L"Before printing number of chunks." << std::endl;
-
-    std::vector<Words> chunks;
+    words.clear();
     std::wstring word;
+    std::size_t start = 0;
 
     for (std::size_t i = 0; i < str.size(); ++i) {
         wchar_t c = str[i];
         if (c == L' ' || c == L'\n' || c == L'\r') {
             if (!word.empty()) {
-                //auto cleanWord = clean_word(word);
-                Words curFullWOrd;
-                curFullWOrd.chunk = clean_word(word);
-                curFullWOrd.source = word;
-                chunks.push_back(curFullWOrd); // Clean the word for the `chunk` field, and use the raw word for the `source` field
+                words.push_back({ clean_word(word), start, i - 1 });
                 word.clear();
             }
+            // update start position after the separator
+            start = i + 1;
         }
         else {
             word += c;
         }
     }
     if (!word.empty()) {
-        chunks.push_back({ clean_word(word), word }); // Clean the last word if any, and use the raw word for the `source` field
+        words.push_back({ clean_word(word), start, str.size() - 1 });
     }
 
-    chunks.erase(std::remove_if(chunks.begin(), chunks.end(), [](const Words& chunk) {
-        return chunk.chunk.empty();
-        }), chunks.end());
-    std::wcout << L"Before printing number of chunks." << std::endl;
-    std::wcout.flush();
+    words.erase(std::remove_if(words.begin(), words.end(), [](const Words& chunk) {
+        return chunk.cleaned_text.empty();
+        }), words.end());
 
-    std::wcout << L"Number of chunks: " << chunks.size() << std::endl;
-    return chunks;
+    std::wcout << L"Number of chunks: " << words.size() << std::endl;
 }
 
 
@@ -148,17 +146,17 @@ void read_tx_files(const std::filesystem::path & path) {
                 {
                     std::wstring content = readFile(entry.path().string());
 
-                    std::vector<Words> words = split_string(content);
+                    split_string(content);
 
                    // auto chunks = split_into_chunks(words);
                    // std::wcout << L"Number of chunks: " << chunks.size() << std::endl;
 
-                    //for (const auto& chunk : chunks) {
-                    //    std::wcout << L"Chunk: " << chunk.chunk << std::endl;
-                    //    std::wcout << L"Start position: " << chunk.start << std::endl;
-                    //    std::wcout << L"End position: " << chunk.end << std::endl;
+                    //for (const auto& cleaned_text : chunks) {
+                    //    std::wcout << L"Chunk: " << cleaned_text.cleaned_text << std::endl;
+                    //    std::wcout << L"Start position: " << cleaned_text.start << std::endl;
+                    //    std::wcout << L"End position: " << cleaned_text.end << std::endl;
                     //    std::wcout << L"Source: ";
-                    //    for (std::size_t i = chunk.start; i <= chunk.end; ++i) {
+                    //    for (std::size_t i = cleaned_text.start; i <= cleaned_text.end; ++i) {
                     //        std::wcout << content[i];
                     //    }
                     //    std::wcout << std::endl;
@@ -230,7 +228,8 @@ int main(int argc, char* argv[]) {
     read_words_into_set(allowed_words, data_dir + "s_names.txt");
 
 
-    std::filesystem::path path("C:\\datasets\\books_txt\\lit_Children"); //argv[1]
+    //std::filesystem::path path("C:\\datasets\\books_txt\\lit_Children"); //argv[1]
+    std::filesystem::path path("C:\\repos\\TextParser\\TextParser\\test"); //argv[1]
     read_tx_files(path);
     return 0;
 }
