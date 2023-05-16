@@ -15,6 +15,7 @@
 
 constexpr int CHUNK_SIZE_MIN = 10;
 constexpr int MIN_WORD_LENGTH = 2;
+constexpr int MAX_CHUNK_SIZE = 3;  // Set this to your desired maximum chunk size
 
 struct Words {
     std::wstring cleaned_text;
@@ -42,9 +43,11 @@ std::wstring get_chunk_source_text(const Chunk& chunk, const std::wstring& orig_
     return source_text;
 }
 
+
 void split_into_chunks() {
     std::wstring current_chunk_text;
     std::size_t current_chunk_start = 0;
+    int current_word_count = 0;
     chunks.clear();
     bool start_new_chunk = true;
     for (std::size_t i = 0; i < words.size(); ++i) {
@@ -52,9 +55,10 @@ void split_into_chunks() {
 
         if (allowed_words.count(word.cleaned_text) == 0) {
             counter[word.cleaned_text]++;
-            if (!current_chunk_text.empty() && current_chunk_text.size() >= CHUNK_SIZE_MIN) {
+            if (!current_chunk_text.empty() && current_word_count >= CHUNK_SIZE_MIN) {
                 chunks.push_back({ current_chunk_text, current_chunk_start, words[i - 1].end });
                 current_chunk_text.clear();
+                current_word_count = 0;
             }
             start_new_chunk = true;
         }
@@ -64,10 +68,17 @@ void split_into_chunks() {
                 start_new_chunk = false;
             }
             current_chunk_text += (word.cleaned_text + L" ");
+            current_word_count++;
+            if (current_word_count == MAX_CHUNK_SIZE) {
+                chunks.push_back({ current_chunk_text, current_chunk_start, word.end });
+                current_chunk_text.clear();
+                current_word_count = 0;
+                start_new_chunk = true;
+            }
         }
     }
 
-    if (!current_chunk_text.empty() && current_chunk_text.size() >= CHUNK_SIZE_MIN) {
+    if (!current_chunk_text.empty() && current_word_count >= CHUNK_SIZE_MIN) {
         chunks.push_back({ current_chunk_text, current_chunk_start, words.back().end });
     }
 }
